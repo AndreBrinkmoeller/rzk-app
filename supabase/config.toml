@@ -1,4 +1,4 @@
-# Supabase-Projektkonfiguration (für CLI / GitHub Action)
+# Supabase-Projektkonfiguration (für CLI / GitHub Action) – Projekt orcqtwckijudgczffvyn
 project_id = "rzk-app"
 
 [auth]
