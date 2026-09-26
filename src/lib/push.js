@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js'
 
-const VAPID = import.meta.env.VITE_VAPID_PUBLIC_KEY
+const VAPID = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BE-Dyv1KKmY_CqaJwm_Cvrh8CoAielEQW2RC87XvSEwS8VWeCpvXp55XzzGF_k6XVU-Lv-DrreVEaS6Io2cUdeI'
 
 export const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 export const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
