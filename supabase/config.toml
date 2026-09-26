@@ -2,7 +2,7 @@
 project_id = "rzk-app"
 
 [auth]
-site_url = "https://rzk.vercel.app"
+site_url = "https://rzk-app.vercel.app"
 
 [auth.email]
 enable_signup = true
