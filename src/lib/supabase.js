@@ -12,4 +12,4 @@ const url = valid(envUrl) ? envUrl : DEFAULT_URL
 const key = valid(envKey) ? envKey : DEFAULT_KEY
 
 export const configured = Boolean(url && key)
-export const supabase = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } })
+export const supabase = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } })
