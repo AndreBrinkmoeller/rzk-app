@@ -29,5 +29,7 @@ jobs:
             VAPID_PRIVATE_KEY="${{ secrets.VAPID_PRIVATE_KEY }}" \
             VAPID_SUBJECT="${{ secrets.VAPID_SUBJECT }}" \
             CRON_SECRET="${{ secrets.CRON_SECRET }}"
+      - name: Login-Einstellungen und E-Mail-Vorlage übernehmen
+        run: supabase config push --project-ref "$PROJECT_REF" --yes
       - name: Funktionen bereitstellen
         run: supabase functions deploy --project-ref "$PROJECT_REF"
