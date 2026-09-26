@@ -1,0 +1,16 @@
+name: Tägliche Erinnerungen
+
+on:
+  schedule:
+    - cron: '7 7 * * *'   # 7:07 UTC = 8:07 (Winter) bzw. 9:07 (Sommer) in Deutschland
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Erinnerungen verschicken
+        run: |
+          curl -sS --fail-with-body -X POST \
+            "https://${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co/functions/v1/daily" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" -H "Content-Type: application/json" -d '{}'

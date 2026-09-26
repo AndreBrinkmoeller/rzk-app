@@ -1,0 +1,24 @@
+# Supabase-Projektkonfiguration (für CLI / GitHub Action)
+project_id = "rzk-app"
+
+[auth]
+site_url = "https://rzk.vercel.app"
+
+[auth.email]
+enable_signup = true
+otp_length = 6
+otp_expiry = 900
+
+[functions.notify]
+verify_jwt = true
+
+[functions.daily]
+verify_jwt = false
+
+[auth.email.template.magic_link]
+subject = "Dein Code für die RZK-App"
+content_path = "./supabase/templates/code.html"
+
+[auth.email.template.confirmation]
+subject = "Dein Code für die RZK-App"
+content_path = "./supabase/templates/code.html"
