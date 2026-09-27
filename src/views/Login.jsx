@@ -18,7 +18,7 @@ export default function Login() {
     if (!ok) { setBusy(false); return setMsg('Diese Adresse ist nicht als Mitglied eingetragen. Sag Andre Bescheid, dann schaltet er dich frei.') }
     const { error } = await supabase.auth.signInWithOtp({ email: addr, options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } })
     setBusy(false)
-    if (error) return setMsg(error.status === 429 ? 'Zu viele Versuche. Bitte warte eine Minute.' : 'Der Code konnte nicht gesendet werden: ' + error.message)
+    if (error) return setMsg(error.status === 429 ? 'Im Moment können keine weiteren Login-E-Mails verschickt werden. Bitte versuche es in einer Stunde noch einmal.' : 'Der Code konnte nicht gesendet werden: ' + error.message)
     setEmail(addr); setStep('code')
   }
 
