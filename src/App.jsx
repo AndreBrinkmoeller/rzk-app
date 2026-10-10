@@ -50,7 +50,7 @@ function Member({ session }) {
 function Shell({ me, reloadMe }) {
   const [nav, setNav] = useState({ tab: 'start', open: null, sub: null })
   const [unread, setUnread] = useState(0)
-  const { data: dir } = useLive(() => q(supabase.from('member_directory').select('*').order('first_name')), ['members'], [])
+  const { data: dir, reload: reloadDir } = useLive(() => q(supabase.from('member_directory').select('*').order('first_name')), ['members'], [])
   const { data: openPolls, reload: reloadPolls } = useLive(async () => {
     const polls = await q(supabase.from('polls').select('id,closes_on,closed'))
     const votes = await q(supabase.from('poll_votes').select('poll_id').eq('member_id', me.id))
@@ -85,6 +85,19 @@ function Shell({ me, reloadMe }) {
     if (type === 'poll') go('abstimmen', { open: id })
   }, [go])
 
+  // Zum Aktualisieren nach unten ziehen (installierte App hat keinen Neu-laden-Knopf)
+  const [pull, setPull] = useState(0)
+  useEffect(() => {
+    let startY = null, dist = 0
+    const start = e => { startY = window.scrollY <= 0 && !document.querySelector('.sheet') ? e.touches[0].clientY : null; dist = 0 }
+    const move = e => { if (startY === null) return; dist = Math.max(0, e.touches[0].clientY - startY); setPull(Math.min(dist, 120)) }
+    const end = () => { if (startY !== null && dist > 90) window.location.reload(); startY = null; setPull(0) }
+    window.addEventListener('touchstart', start, { passive: true })
+    window.addEventListener('touchmove', move, { passive: true })
+    window.addEventListener('touchend', end)
+    return () => { window.removeEventListener('touchstart', start); window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end) }
+  }, [])
+
   // Push-Klick: "/?go=chat" oder "/?link=event:<id>"
   useEffect(() => {
     const handle = url => {
@@ -98,11 +111,12 @@ function Shell({ me, reloadMe }) {
     return () => navigator.serviceWorker?.removeEventListener('message', onMsg)
   }, [go, openLink])
 
-  const ctx = { me, reloadMe, dir: dir || [], byId, nav, go, openLink, openPolls: openPolls || 0, reloadPolls, unread }
+  const ctx = { me, reloadMe: () => { reloadMe(); reloadDir() }, reloadDir, dir: dir || [], byId, nav, go, openLink, openPolls: openPolls || 0, reloadPolls, unread }
   const View = { start: Start, termine: Termine, chat: Chat, abstimmen: Abstimmen, kasse: Kasse, mehr: Mehr }[nav.tab]
 
   return (
     <Ctx.Provider value={ctx}>
+      {pull > 20 && <div className="ptr" style={{ opacity: Math.min(pull / 90, 1) }}>{pull > 90 ? 'Loslassen zum Aktualisieren' : 'Zum Aktualisieren ziehen'}</div>}
       <div className="app">
         <header className="top">
           <Logo />

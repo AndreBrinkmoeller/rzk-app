@@ -182,20 +182,27 @@ function Geburtstage() {
 function Mitglieder() {
   const { me, dir } = useApp()
   const [edit, setEdit] = useState(null)
+  // Admins sehen zusätzlich deaktivierte Mitglieder, damit sie sie wieder freischalten können
+  const { data: inactive, reload } = useLive(async () => me.is_admin
+    ? q(supabase.from('members').select('id,first_name,last_name,nickname,title,color').eq('active', false).order('first_name'))
+    : [], [], [me.is_admin])
+  const row = (m, off) => (
+    <button className="row" key={m.id} onClick={() => me.is_admin && setEdit(m)} style={{ ...(me.is_admin ? {} : { cursor: 'default' }), ...(off ? { opacity: .6 } : {}) }}>
+      <Avatar m={m} />
+      <div className="grow"><b>{m.first_name} {m.last_name}{m.nickname ? ` („${m.nickname}“)` : ''}{m.id === me.id ? ' (du)' : ''}</b>
+        <small>{m.title || 'Mitglied'}{m.phone ? ' · ' + m.phone : ''}</small></div>
+      {off ? <span className="pill">Inaktiv</span> : m.is_admin && <span className="pill maple">Admin</span>}
+    </button>
+  )
   return (
     <>
       <h2>{dir.length} Mitglieder {me.is_admin && <button onClick={() => setEdit({})}>Mitglied hinzufügen</button>}</h2>
-      <div className="list">
-        {dir.map(m => (
-          <button className="row" key={m.id} onClick={() => me.is_admin && setEdit(m)} style={me.is_admin ? null : { cursor: 'default' }}>
-            <Avatar m={m} />
-            <div className="grow"><b>{m.first_name} {m.last_name}{m.nickname ? ` („${m.nickname}“)` : ''}{m.id === me.id ? ' (du)' : ''}</b>
-              <small>{m.title || 'Mitglied'}{m.phone ? ' · ' + m.phone : ''}</small></div>
-            {m.is_admin && <span className="pill maple">Admin</span>}
-          </button>
-        ))}
-      </div>
-      {edit && <MemberForm id={edit.id} onClose={() => setEdit(null)} />}
+      <div className="list">{dir.map(m => row(m, false))}</div>
+      {inactive?.length > 0 && <>
+        <h2>Inaktiv</h2>
+        <div className="list">{inactive.map(m => row(m, true))}</div>
+      </>}
+      {edit && <MemberForm id={edit.id} onClose={() => { setEdit(null); reload() }} />}
     </>
   )
 }
@@ -204,6 +211,7 @@ const COLORS = ['#B6423A', '#4F5C76', '#2E7D4F', '#8A5A12', '#5B4B8A', '#1F6F8B'
 
 function MemberForm({ id, onClose }) {
   const toast = useToast()
+  const { reloadDir, reloadMe } = useApp()
   const [f, setF] = useState(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
@@ -225,6 +233,7 @@ function MemberForm({ id, onClose }) {
     setBusy(false)
     if (error) return toast('Nicht gespeichert', error.code === '23505' ? 'Diese E-Mail-Adresse ist schon eingetragen.' : error.message)
     toast(id ? 'Gespeichert' : 'Mitglied hinzugefügt', id ? '' : 'Er kann sich jetzt mit seiner E-Mail-Adresse anmelden.')
+    reloadDir(); reloadMe()
     onClose()
   }
 
