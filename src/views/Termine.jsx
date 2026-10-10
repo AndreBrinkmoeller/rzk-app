@@ -59,6 +59,53 @@ function StatusPill({ s }) {
   return <span className="pill red">Offen</span>
 }
 
+
+// ── Terminreihen ──
+const REPEAT = [
+  ['none', 'Nicht wiederholen'],
+  ['w1', 'Jede Woche'],
+  ['w2', 'Alle 2 Wochen'],
+  ['w4', 'Alle 4 Wochen'],
+  ['mnth', 'Jeden Monat am gleichen Wochentag'],
+  ['mday', 'Jeden Monat am gleichen Datum']
+]
+const ORD = ['1.', '2.', '3.', '4.', 'letzten']
+function seriesDates(startIso, rule, untilIso) {
+  const out = []
+  const start = D(startIso), until = D(untilIso)
+  const wd = start.getDay(), nth = Math.floor((start.getDate() - 1) / 7)
+  const lastOfMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate() - start.getDate() < 7 && nth >= 4
+  for (let i = 0; i < 120; i++) {
+    let d
+    if (rule.startsWith('w')) { d = new Date(start); d.setDate(start.getDate() + i * 7 * Number(rule.slice(1))) }
+    else if (rule === 'mday') {
+      d = new Date(start.getFullYear(), start.getMonth() + i, 1, 12)
+      const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+      d.setDate(Math.min(start.getDate(), last))
+    } else {
+      const first = new Date(start.getFullYear(), start.getMonth() + i, 1, 12)
+      const offset = (wd - first.getDay() + 7) % 7
+      d = new Date(first); d.setDate(1 + offset + 7 * Math.min(nth, 3))
+      if (lastOfMonth || nth >= 4) {
+        const last = new Date(first.getFullYear(), first.getMonth() + 1, 0, 12)
+        d = new Date(last); d.setDate(last.getDate() - ((last.getDay() - wd + 7) % 7))
+      }
+    }
+    if (d > until) break
+    out.push(iso(d))
+  }
+  return out
+}
+function ruleLabel(rule, startIso) {
+  const d = D(startIso), day = fmt(d, { weekday: 'long' })
+  if (rule === 'w1') return 'jeden ' + day
+  if (rule === 'w2') return 'alle 2 Wochen'
+  if (rule === 'w4') return 'alle 4 Wochen'
+  if (rule === 'mday') return 'jeden Monat am ' + d.getDate() + '.'
+  const nth = Math.floor((d.getDate() - 1) / 7)
+  return 'jeden ' + ORD[Math.min(nth, 4)] + ' ' + day + ' im Monat'
+}
+
 export default function Termine() {
   const { me, nav } = useApp()
   const { data, error, reload } = useEvents()
@@ -129,6 +176,11 @@ function EventSheet({ e, onClose, onEdit, reload }) {
     if (error) return toast('Löschen fehlgeschlagen', error.message)
     toast('Termin gelöscht'); onClose(); reload()
   }
+  async function removeFollowing() {
+    const { error } = await supabase.from('events').delete().eq('series_id', e.series_id).gte('starts_on', e.starts_on)
+    if (error) return toast('Löschen fehlgeschlagen', error.message)
+    toast('Termine gelöscht', 'Dieser und alle folgenden Termine der Reihe'); onClose(); reload()
+  }
   const group = s => dir.filter(m => e.rsvp[m.id] === s)
   const none = dir.filter(m => !e.rsvp[m.id])
 
@@ -137,6 +189,7 @@ function EventSheet({ e, onClose, onEdit, reload }) {
       <div className="eyebrow" style={{ color: 'var(--mute)' }}>{KIND[e.kind]}</div>
       <h1 style={{ marginTop: 6 }}>{e.title}</h1>
       <p className="sub">{when(e)}{e.start_time ? ' · ' + e.start_time + (e.kind === 'trip' ? '' : ' Uhr') : ''}{e.location && <><br />{e.location}</>}</p>
+      {e.series_rule && <p className="sub" style={{ marginTop: 4 }}>Wiederholt sich {e.series_rule}.</p>}
       {e.note && <p style={{ whiteSpace: 'pre-wrap' }}>{e.note}</p>}
       {isUpcoming(e) && <div className="card" style={{ marginTop: 12 }}><RsvpButtons e={e} onChange={reload} /></div>}
       <h2>Wer kommt <span style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none' }}>{c.yes} ja · {c.maybe} vielleicht · {c.no} nein</span></h2>
@@ -167,7 +220,10 @@ function EventSheet({ e, onClose, onEdit, reload }) {
       </p>
       {me.is_admin && <p style={{ display: 'flex', gap: 10 }}>
         <button className="btn ghost" style={{ flex: 1 }} onClick={onEdit}>Bearbeiten</button>
-        <ConfirmButton label="Löschen" confirmLabel="Wirklich löschen?" onConfirm={remove} className="btn ghost" />
+        <ConfirmButton label={e.series_id ? 'Nur diesen löschen' : 'Löschen'} confirmLabel="Wirklich löschen?" onConfirm={remove} className="btn ghost" />
+      </p>}
+      {me.is_admin && e.series_id && <p style={{ marginTop: 0 }}>
+        <ConfirmButton label="Diesen und alle folgenden löschen" confirmLabel="Wirklich alle folgenden löschen?" onConfirm={removeFollowing} className="btn ghost" />
       </p>}
     </Sheet>
   )
@@ -180,7 +236,8 @@ function EventForm({ initial, onClose, onSaved }) {
   const [f, setF] = useState({
     title: initial.title || '', kind: initial.kind || 'stammtisch', starts_on: initial.starts_on || '', ends_on: initial.ends_on || '',
     start_time: initial.start_time || (isNew ? '19:30' : ''), location: initial.location || '', note: initial.note || '', cost: initial.cost || '',
-    program: (initial.program || []).map(p => `${p.day}: ${p.text}`).join('\n'), packing: (initial.packing || []).join('\n'), push: isNew
+    program: (initial.program || []).map(p => `${p.day}: ${p.text}`).join('\n'), packing: (initial.packing || []).join('\n'), push: isNew,
+    repeat: 'none', until: ''
   })
   const [busy, setBusy] = useState(false)
   const set = k => e => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value })
@@ -193,6 +250,21 @@ function EventForm({ initial, onClose, onSaved }) {
       start_time: f.start_time || null, location: f.location || null, note: f.note || null, cost: f.cost || null,
       program: f.program.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const i = l.indexOf(':'); return i > 0 ? { day: l.slice(0, i).trim(), text: l.slice(i + 1).trim() } : { day: '', text: l } }),
       packing: f.packing.split('\n').map(l => l.trim()).filter(Boolean)
+    }
+    const series = isNew && f.repeat !== 'none' && f.kind !== 'trip'
+    if (series) {
+      const until = f.until || iso(new Date(D(f.starts_on).getTime() + 365 * 864e5))
+      const dates = seriesDates(f.starts_on, f.repeat, until)
+      const series_id = crypto.randomUUID(), series_rule = ruleLabel(f.repeat, f.starts_on)
+      const first = await supabase.from('events').insert({ ...row, created_by: me.id, series_id, series_rule }).select('id').single()
+      if (first.error) { setBusy(false); return toast('Speichern fehlgeschlagen', first.error.message) }
+      const rest = dates.slice(1).map(d => ({ ...row, starts_on: d, ends_on: null, created_by: me.id, series_id, series_rule }))
+      const res2 = rest.length ? await supabase.from('events').insert(rest) : { error: null }
+      setBusy(false)
+      if (res2.error) return toast('Nur der erste Termin wurde gespeichert', res2.error.message)
+      if (f.push) notify('event_created', { event_id: first.data.id })
+      toast('Terminreihe angelegt', `${dates.length} Termine, ${series_rule}`)
+      return onSaved(first.data.id)
     }
     const res = isNew
       ? await supabase.from('events').insert({ ...row, created_by: me.id }).select('id').single()
@@ -217,6 +289,13 @@ function EventForm({ initial, onClose, onSaved }) {
             : <label>Uhrzeit<input id="ev-time" type="time" value={f.start_time} onChange={set('start_time')} /></label>}
         </div>
         {f.kind === 'trip' && <label>Abfahrt<input id="ev-dep" value={f.start_time} onChange={set('start_time')} placeholder="z. B. Fr 14:00 am Bahnhof" /></label>}
+        {isNew && f.kind !== 'trip' && <>
+          <label>Wiederholen<select id="ev-repeat" value={f.repeat} onChange={set('repeat')}>{REPEAT.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+          {f.repeat !== 'none' && f.starts_on && <>
+            <label>Bis (leer = ein Jahr)<input id="ev-until" type="date" value={f.until} min={f.starts_on} onChange={set('until')} /></label>
+            <p className="sub" style={{ margin: 0, fontSize: 13 }}>{(() => { const n = seriesDates(f.starts_on, f.repeat, f.until || iso(new Date(D(f.starts_on).getTime() + 365 * 864e5))); return `${n.length} Termine, ${ruleLabel(f.repeat, f.starts_on)}: ${n.slice(0, 3).map(d => fmt(d, { day: 'numeric', month: 'short' })).join(', ')}${n.length > 3 ? ' …' : ''}` })()}</p>
+          </>}
+        </>}
         <label>Ort<input id="ev-loc" value={f.location} onChange={set('location')} /></label>
         <label>Infos<textarea id="ev-note" rows="3" value={f.note} onChange={set('note')} /></label>
         {f.kind !== 'stammtisch' && <label>Kosten<input id="ev-cost" value={f.cost} onChange={set('cost')} placeholder="z. B. ca. 180 € pro Person" /></label>}
